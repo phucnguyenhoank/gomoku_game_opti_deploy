@@ -2,12 +2,13 @@ import random
 
 BOARD_SIZE = 20
 MINIMAX_INFINITY = 999
-MAX_DEPTH = 9
+MAX_DEPTH = 6
 
 class GomokuPos:
-    def __init__(self, x=-1, y=-1):
+    def __init__(self, x=-1, y=-1, threatening=0):
         self.x = x
         self.y = y
+        self.threatening = threatening
 
     def valid_pos(self):
         return 0 <= self.x < BOARD_SIZE and 0 <= self.y < BOARD_SIZE
@@ -20,10 +21,15 @@ class GomokuPos:
         return distance
 
     def __eq__(self, other):
-        return isinstance(other, GomokuPos) and self.x == other.x and self.y == other.y
+        '''Don't check if is is an instance'''
+        return (self.x, self.y) == (other.x, other.y)
     
     def __str__(self) -> str:
         return f"gmkp({self.x}, {self.y})"
+
+    def __hash__(self):
+        return hash((self.x, self.y))
+
 
 class Gomoku:
     """
@@ -38,54 +44,6 @@ class Gomoku:
             self.board = [row[:] for row in other.board]
             self.active_turn = other.active_turn
         
-    def get_threating_positions(self, opponent):
-        me = 'X' if opponent == 'O' else 'O'
-        # đường OO tạo thành OOO
-        patterns = ["{1}{0}{0}{0}{0}N".format(opponent, me), "N{0}{0}{0}{0}{1}".format(opponent, me), "{0}{0}{0}{0}N".format(opponent, me), "N{0}{0}{0}{0}".format(opponent, me),"N{0}{0}{0}{0}N".format(opponent), "{0}{0}{0}N{0}".format(opponent), "{0}N{0}{0}{0}".format(opponent), "{0}{0}N{0}{0}".format(opponent), \
-                    "N{0}N{0}{0}N".format(opponent), "N{0}{0}N{0}N".format(opponent), "N{0}{0}{0}N".format(opponent), "{1}N{0}{0}{0}NN".format(opponent, me), "NN{0}{0}{0}N{1}".format(opponent, me), "{1}{0}{0}{0}N".format(opponent, me), "N{0}{0}{0}{1}".format(opponent, me),\
-                        "N{0}{0}N".format(opponent)]
-        positions = []
-        max_threating_point = 0
-        for pattern in patterns:
-            have_threat = False
-            for i, row in enumerate(self.board):
-                for j in range(BOARD_SIZE - len(pattern) + 1):
-                    if ''.join(row[j:j+len(pattern)]) == pattern:
-                        have_threat = True
-                        positions.extend(GomokuPos(i, j+k) for k, char in enumerate(pattern) if char == 'N' and 0 <= j+k < BOARD_SIZE)
-            for j in range(BOARD_SIZE):
-                for i in range(BOARD_SIZE - len(pattern) + 1):
-                    if ''.join(self.board[i+k][j] for k in range(len(pattern))) == pattern:
-                        have_threat = True
-                        positions.extend(GomokuPos(i+k, j) for k, char in enumerate(pattern) if char == 'N' and 0 <= i+k < BOARD_SIZE)
-            for di in range(-BOARD_SIZE + 1, BOARD_SIZE):
-                major_diagonal = [(i, i + di) for i in range(max(0, -di), min(BOARD_SIZE, BOARD_SIZE - di)) if 0 <= i + di < BOARD_SIZE]
-                minor_diagonal = [(i, BOARD_SIZE - 1 - i - di) for i in range(max(0, -di), min(BOARD_SIZE, BOARD_SIZE - di)) if 0 <= BOARD_SIZE - 1 - i - di < BOARD_SIZE]
-                for diagonal in [major_diagonal, minor_diagonal]:
-                    for i in range(len(diagonal) - len(pattern) + 1):
-                        if ''.join(self.board[x][y] for x, y in diagonal[i:i+len(pattern)]) == pattern:
-                            have_threat = True
-                            positions.extend(GomokuPos(x, y) for (x, y), char in zip(diagonal[i:i+len(pattern)], pattern) if char == 'N')
-            
-            if have_threat:
-                threating_point = 0
-                if pattern == "{1}{0}{0}{0}{0}N".format(opponent, me) or pattern == "N{0}{0}{0}{0}{1}".format(opponent, me) or pattern == "N{0}{0}{0}{0}N".format(opponent) or "{0}{0}{0}N{0}".format(opponent) or "{0}N{0}{0}{0}".format(opponent) or "{0}{0}N{0}{0}".format(opponent) or \
-                    pattern == "{0}{0}{0}{0}N".format(opponent, me) or pattern == "N{0}{0}{0}{0}".format(opponent, me):
-                   threating_point = 4
-                elif pattern == "N{0}{0}N".format(opponent):
-                    threating_point = 2
-                else:
-                    threating_point = 3
-                max_threating_point = max(max_threating_point, threating_point) 
-        # thêm điểm nếu các vị trí đe dọa được lặp lại
-        for i in range(len(positions)):
-            for j in range(i+1, len(positions)):
-                if positions[i] == positions[j]:
-                    max_threating_point += 0.5
-
-
-        return positions, max_threating_point
-
     def win(self):
         """
         Check if there's a winner or if the game is tied.\n
@@ -169,20 +127,96 @@ class Gomoku:
         new_state.move(pos)
         return new_state
     
-    ###
+    def get_threatening_positions(self, opponent):
+        me = 'X' if opponent == 'O' else 'O'
+        threatening_patterns = ["{1}{0}{0}{0}{0}N".format(opponent, me), "N{0}{0}{0}{0}{1}".format(opponent, me), "{0}{0}{0}{0}N".format(opponent, me), "N{0}{0}{0}{0}".format(opponent, me), "{0}{0}{0}N{0}".format(opponent), "{0}N{0}{0}{0}".format(opponent), "{0}{0}N{0}{0}".format(opponent), \
+                    "N{0}N{0}{0}N".format(opponent), "N{0}{0}N{0}N".format(opponent), "N{0}{0}{0}N".format(opponent), "{1}N{0}{0}{0}NN".format(opponent, me), "NN{0}{0}{0}N{1}".format(opponent, me), "{1}{0}{0}{0}NN".format(opponent, me), "NN{0}{0}{0}{1}".format(opponent, me), "{0}N{0}N{0}".format(opponent),\
+                        "N{0}{0}NN".format(opponent), "NN{0}{0}N".format(opponent), "N{0}N{0}N".format(opponent)]
+        EXTRA_THREATENING_POINT = 0.5
+        threatening_positions = []
+        for pattern in threatening_patterns:
+            threatening_point = pattern.count('{0}'.format(opponent))
+            for i, row in enumerate(self.board):
+                for j in range(BOARD_SIZE - len(pattern) + 1):
+                    if ''.join(row[j:j+len(pattern)]) == pattern:
+                        for k, char in enumerate(pattern):
+                            if char == 'N' and 0 <= j+k < BOARD_SIZE:
+                                pos = GomokuPos(i, j+k)
+                                if pos not in threatening_positions:
+                                    pos.threatening = threatening_point
+                                    threatening_positions.append(pos)
+                                else: # có 2 trường hợp, điểm hăm dọa của nó là 3, 4,.., hoặc 3.25, 4.25,... Việc có nhiều hơn 2 cộng dồn hăm dọa của 3 cũng không thể làm đểm hăm dọa của nó thành 4 bởi vì 1 đường 4 vẫn hơn nhiều đường 3
+                                    id = threatening_positions.index(pos)
+                                    old_threatening_point = threatening_positions[id].threatening
+                                    if old_threatening_point == 3 or old_threatening_point == 4:
+                                        threatening_positions[id].threatening = max(old_threatening_point, threatening_point) + EXTRA_THREATENING_POINT
+                                    else:
+                                        old_threatening_point -= EXTRA_THREATENING_POINT
+                                        threatening_positions[id].threatening = max(old_threatening_point, threatening_point) + EXTRA_THREATENING_POINT
+            for j in range(BOARD_SIZE):
+                for i in range(BOARD_SIZE - len(pattern) + 1):
+                    if ''.join(self.board[i+k][j] for k in range(len(pattern))) == pattern:
+                        for k, char in enumerate(pattern):
+                            if char == 'N' and 0 <= i+k < BOARD_SIZE:
+                                pos = GomokuPos(i+k, j)
+                                if pos not in threatening_positions:
+                                    pos.threatening = threatening_point
+                                    threatening_positions.append(pos)
+                                else: # có 2 trường hợp, điểm hăm dọa của nó là 3, 4,.., hoặc 3.25, 4.25,... Việc có nhiều hơn 2 cộng dồn hăm dọa của 3 cũng không thể làm đểm hăm dọa của nó thành 4 bởi vì 1 đường 4 vẫn hơn nhiều đường 3
+                                    id = threatening_positions.index(pos)
+                                    old_threatening_point = threatening_positions[id].threatening
+                                    if old_threatening_point == 3 or old_threatening_point == 4:
+                                        threatening_positions[id].threatening = max(old_threatening_point, threatening_point) + EXTRA_THREATENING_POINT
+                                    else:
+                                        old_threatening_point -= EXTRA_THREATENING_POINT
+                                        threatening_positions[id].threatening = max(old_threatening_point, threatening_point) + EXTRA_THREATENING_POINT
+
+            for di in range(-BOARD_SIZE + 1, BOARD_SIZE): # biến chạy
+                # 2 danh sách các tọa độ của đường chéo chính và đường chéo phụ, duyệt từ dưới lên
+                major_diagonal = [(i, i + di) for i in range(max(0, -di), min(BOARD_SIZE, BOARD_SIZE - di)) if 0 <= i + di < BOARD_SIZE]
+                minor_diagonal = [(i, BOARD_SIZE - 1 - i - di) for i in range(max(0, -di), min(BOARD_SIZE, BOARD_SIZE - di)) if 0 <= BOARD_SIZE - 1 - i - di < BOARD_SIZE]
+                for diagonal in [major_diagonal, minor_diagonal]:
+                    # kiểm tra xem đường chéo được xét có chứa đe dọa hay không
+                    # nếu có thì biến i sẽ là tọa độ bắt đầu của nó
+                    for i in range(len(diagonal) - len(pattern) + 1): 
+                        if ''.join(self.board[x][y] for x, y in diagonal[i:i+len(pattern)]) == pattern:
+                            for k, char in enumerate(pattern):
+                                if char == 'N':
+                                    x, y = diagonal[i+k] # lấy tọa độ của điểm hăm dọa (là điểm N, chưa được đánh)
+                                    pos = GomokuPos(x, y)
+                                    if pos not in threatening_positions:
+                                        pos.threatening = threatening_point
+                                        threatening_positions.append(pos)
+                                    else: # có 2 trường hợp, điểm hăm dọa của nó là 3, 4,.., hoặc 3.25, 4.25,... Việc có nhiều hơn 2 cộng dồn hăm dọa của 3 cũng không thể làm đểm hăm dọa của nó thành 4 bởi vì 1 đường 4 vẫn hơn nhiều đường 3
+                                        id = threatening_positions.index(pos)
+                                        old_threatening_point = threatening_positions[id].threatening
+                                        if old_threatening_point == 3 or old_threatening_point == 4:
+                                            threatening_positions[id].threatening = max(old_threatening_point, threatening_point) + EXTRA_THREATENING_POINT
+                                        else:
+                                            old_threatening_point -= EXTRA_THREATENING_POINT
+                                            threatening_positions[id].threatening = max(old_threatening_point, threatening_point) + EXTRA_THREATENING_POINT
+
+        if not threatening_positions:
+            return [], 0
+        
+        max_threatening_point = max(pos.threatening for pos in threatening_positions)
+        return threatening_positions, max_threatening_point
+
     def get_best_moves(self):
         me = self.active_turn
         op = 'X' if me == 'O' else 'O'
-        op_threating_moves, op_threating_point = self.get_threating_positions(op) # defense moves
-        me_threating_moves, me_threating_point = self.get_threating_positions(me) # attack moves
+        op_threatening_moves, op_threatening_point = self.get_threatening_positions(op) # defense moves
+        me_threatening_moves, me_threatening_point = self.get_threatening_positions(me) # attack moves
 
-        if me_threating_point >= op_threating_point:
+        if me_threatening_point >= op_threatening_point:
             # look if the player me has any attack moves
-            if me_threating_moves: 
-                return me_threating_moves
-            return [random.choice(self.get_lite_best_moves(me))]
-        return op_threating_moves
-
+            if me_threatening_moves: 
+                return sorted(me_threatening_moves, key=lambda pos: pos.threatening, reverse=True), me_threatening_point
+            return [random.choice(self.get_lite_best_moves(me))], me_threatening_point
+        elif op_threatening_point >= 4:
+            # only need to return one move because that move is eventually played
+            return sorted(op_threatening_moves, key=lambda pos: pos.threatening, reverse=True)[0:1], op_threatening_point
+        return sorted(op_threatening_moves, key=lambda pos: pos.threatening, reverse=True), op_threatening_point
 
     def get_lite_best_moves(self, me):
         '''
@@ -215,70 +249,6 @@ class Gomoku:
             center_point = GomokuPos(BOARD_SIZE//2, BOARD_SIZE//2)
             best_moves.sort(key=lambda x: GomokuPos.distance_between(center_point, x))
             return best_moves[0:4]
-        
-    
-    # ----------------------
-
-
-    def get_valid_states(self):
-        states = []
-        for pos in self.get_valid_moves():
-            states.append(self.get_new_state(pos))
-        return states
-
-    def get_ordered_moves(self, heuristic_func, player_name):
-        '''List of tuple, (move, score)'''
-        # Get all valid moves
-        valid_moves = self.get_valid_moves()
-
-        # Use the heuristic function to score each move
-        scored_moves = [(move, heuristic_func(self.get_new_state(move), player_name)) for move in valid_moves]
-
-        # Sort the moves in descending order of their scores
-        scored_moves.sort(key=lambda x: x[1], reverse=True)
-
-        return scored_moves
-    
-    def get_ordered_states(self, heuristic_func):
-        ''' Under the view of current active turn\n
-        Getting neighbor states as a list of tuple (state, score) in decreasing order of heuristic score'''
-
-        # Use the heuristic function to score each new state
-        scored_states = [(self.get_new_state(move), heuristic_func(self.get_new_state(move), self.active_turn)) for move in self.get_valid_moves()]
-
-        # Sort the states in descending order of their scores
-        scored_states.sort(key=lambda x: x[1], reverse=True)
-
-        # Return the ordered states
-        return scored_states
-    
-    def get_best_states(self, heuristic_func, max_element=5):
-        ''' Under the view of current active turn\n
-        Getting neighbor states as a list of tuple (state, score) with the highest heuristic score'''
-
-        # Use the heuristic function to score each new state
-        scored_states = [(self.get_new_state(move), heuristic_func(self.get_new_state(move), self.active_turn)) for move in self.get_valid_moves()]
-
-        # Sort the states in descending order of their scores
-        scored_states.sort(key=lambda x: x[1], reverse=True)
-
-        # Get the highest score
-        highest_score = scored_states[0][1]
-
-        # Return only the states with the highest score
-        best_states = [state for state in scored_states if state[1] == highest_score]
-
-        return best_states[:max_element]
-
-    def have_worse(self, other_states):
-        '''
-        Under the view of the active_turn\n
-        Return True if there is any better state in the other_states list'''
-        this_score = GomokuBot.heuristic(self, self.active_turn)
-        for state in other_states:
-            if GomokuBot.heuristic(state, self.active_turn) > this_score:
-                return True
-        return False
 
     def count_moves(self):
         '''
@@ -294,26 +264,12 @@ class Gomoku:
                 elif c == 'N':
                     cn += 1
         return cx, co, cn
-    '''
-    def show_board(self):
-        """ Display the current game board. """
-        print(end="  ")
-        for i in range(BOARD_SIZE):
-            print(i,end=" ")
-        print()
-        j = 0
-        for row in self.board:
-            print(j, end=' ')
-            j += 1
-            print(' '.join(['.' if cell == 'N' else cell for cell in row]))
-        print()
-    '''
-    8
+
     def show_board(self):
         """ Display the current game board. """
         print("   ", end="")
         for i in range(BOARD_SIZE):
-            print(f"{i:2}", end=" ")
+            print(f"{i%10}", end=" ")
         print()
         j = 0
         for row in self.board:
@@ -357,9 +313,15 @@ class GomokuBot:
         elif depth > MAX_DEPTH:
             return 0
 
-        best_moves = state.get_best_moves()
+        best_moves, threatening_point = state.get_best_moves()
 
         if state.active_turn == self.name:
+            
+            if depth == 0 and threatening_point >= 4:
+                self.choice = best_moves[0]
+                print("GET 1 QUICK SOLUTION!!!")
+                return
+            
             max_score = -MINIMAX_INFINITY
             for move in best_moves:
                 possible_game = state.get_new_state(move)
@@ -392,45 +354,46 @@ class GomokuBot:
         Optimize, it turn slow when the number of blanks goes to 13 blanks
         """
         self.minimax_alpha_beta(self.gmk_game, 0, -MINIMAX_INFINITY, MINIMAX_INFINITY)
+        print(f"solution:({self.choice.x}, {self.choice.y})")
         return self.choice
 
 
-
+'''
 if __name__ == "__main__":
     # Create a new Gomoku game
     game = Gomoku()
     bot = GomokuBot(game)
 
-    '''
+    
     game.board = [
         ['N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N'],
-        ['N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'X', 'N'],
-        ['N', 'N', 'N', 'N', 'N', 'N', 'N', 'O', 'N', 'N'],
-        ['N', 'N', 'N', 'N', 'N', 'N', 'O', 'N', 'N', 'N'],
-        ['N', 'N', 'X', 'N', 'N', 'N', 'N', 'N', 'N', 'N'],
+        ['N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N'],
+        ['N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N'],
+        ['N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N'],
+        ['N', 'N', 'N', 'N', 'X', 'N', 'N', 'O', 'N', 'N'],
+        ['N', 'N', 'N', 'X', 'O', 'N', 'O', 'N', 'N', 'N'],
+        ['N', 'N', 'N', 'X', 'O', 'O', 'N', 'N', 'N', 'N'],
         ['N', 'N', 'X', 'N', 'O', 'N', 'N', 'N', 'N', 'N'],
-        ['N', 'N', 'X', 'O', 'N', 'N', 'N', 'N', 'N', 'N'],
-        ['N', 'N', 'O', 'N', 'N', 'N', 'N', 'N', 'N', 'N'],
         ['N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N'],
         ['N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N', 'N']]
-    
-            
 
-
-    
     # FOR CHECK BOT'S MOVE
     # show before move
     print(game.count_moves())
     game.show_board()
+    game.active_turn = 'O'
+    bot.name = 'O'
+    
 
     print("Bot is thinking...")
     bot_turn = bot.take_turn_alpha_beta()
     print("Bot moves:")
-    game.move(bot_turn) # ??? nước đi này nhìn có vẻ ngu
+    game.move(bot_turn)
     
     # show after move
     game.show_board()
-    '''
+    
+    
     
     # FOR PLAY GAME
     game.show_board()
@@ -469,7 +432,7 @@ if __name__ == "__main__":
             else:
                 print('Tie!')
             break
-    
+    '''
     
 
 
