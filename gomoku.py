@@ -5,6 +5,7 @@ MINIMAX_INFINITY = 999
 MAX_DEPTH = 6
 
 class GomokuPos:
+    '''Được thiết kế dành riêng cho lớp Gomoku'''
     def __init__(self, x=-1, y=-1, threatening=0):
         self.x = x
         self.y = y
@@ -33,13 +34,17 @@ class GomokuPos:
 
 class Gomoku:
     """
-    Two player Gomoku Game\n
-    Default active turn is X
+    Bàn cờ Caro với 2 người chơi\n
+    Tọa độ của bàn cờ được quy định giống như một ma trận cấp 2 với các cột(dòng) 0 -> N từ trên xuống dưới(từ trái qua phải)\n
+    Sử dụng lớp GomokuPos\n
+    Mặc định nước đi đầu tiên là X
     """
     def __init__(self, other=None):
         if other is None:
+            # Một vị trí trong board có thể có 3 giá trị X, O hoặc N (vị trí chưa có nước đi)
             self.board = [['N' for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
-            self.active_turn = 'X'  # Start with player 'X'
+            # active turn là nước đi tiếp theo của bàn cờ, mặc định nước đi đầu tiên là X
+            self.active_turn = 'X'
         else:
             self.board = [row[:] for row in other.board]
             self.active_turn = other.active_turn
@@ -112,40 +117,57 @@ class Gomoku:
             raise ValueError("Invalid move: position already occupied or out of bounds.")
     
     def have_occupied(self, pos):
+        ''' Trả về True nếu vị trí hiện tại bị chiếm bởi X hoặc O'''
         return self.board[pos.x][pos.y] != 'N'
 
-    def get_valid_moves(self):
-        moves = []
-        for i in range(BOARD_SIZE):
-            for j in range(BOARD_SIZE):
-                if self.board[i][j] == 'N':
-                    moves.append(GomokuPos(i, j))
-        return moves
     
     def get_new_state(self, pos):
+        ''' Trả về một Gomoku mới là trạng thái của bàn cờ sau khi di chuyển nước đi pos'''
         new_state = Gomoku(self)
         new_state.move(pos)
         return new_state
     
     def get_threatening_positions(self, opponent):
+        '''
+        Trả về một danh sách các GomokuPos là các vị trí mà opponent khả năng cao sẽ đi nhất (những vị trí mà opponent tạo được nhiều điểm hăm dọa nhất)\n
+        Và điểm hăm dọa cao nhất
+        '''
+        # me là nước đi có vai trò chặn opponent
         me = 'X' if opponent == 'O' else 'O'
+
+        # Danh sách những mẫu/chuỗi trường hợp hăm dọa thường thấy
+        # Ví dụ "{1}{0}{0}{0}{0}N".format(opponent, me)
+        # Chuỗi này có nghĩa là opponent đã đi được 4 nước liên tiếp, bị chặn 1 đầu và đầu còn lại chưa được đi
         threatening_patterns = ["{1}{0}{0}{0}{0}N".format(opponent, me), "N{0}{0}{0}{0}{1}".format(opponent, me), "{0}{0}{0}{0}N".format(opponent, me), "N{0}{0}{0}{0}".format(opponent, me), "{0}{0}{0}N{0}".format(opponent), "{0}N{0}{0}{0}".format(opponent), "{0}{0}N{0}{0}".format(opponent), \
                     "N{0}N{0}{0}N".format(opponent), "N{0}{0}N{0}N".format(opponent), "N{0}{0}{0}N".format(opponent), "{1}N{0}{0}{0}NN".format(opponent, me), "NN{0}{0}{0}N{1}".format(opponent, me), "{1}{0}{0}{0}NN".format(opponent, me), "NN{0}{0}{0}{1}".format(opponent, me), "{0}N{0}N{0}".format(opponent),\
                         "N{0}{0}NN".format(opponent), "NN{0}{0}N".format(opponent), "N{0}N{0}N".format(opponent)]
+        
+        # điểm hăm dọa dùng cộng thêm nếu như xuất hiện 2 hay nhiều nước hăm dọa được dồn vào cùng 1 vị trí
         EXTRA_THREATENING_POINT = 0.5
+
+        # danh sách kết quả các nước hăm dọa
         threatening_positions = []
-        for pattern in threatening_patterns:
-            threatening_point = pattern.count('{0}'.format(opponent))
-            for i, row in enumerate(self.board):
+
+        for pattern in threatening_patterns: # với mỗi mẫu hăm dọa, bảng sẽ được duyệt toàn bộ 1 lần
+            # điểm hăm dọa của mẫu sẽ được gán cho vị trí hăm dọa (nếu có tồn tại)
+            threatening_point = pattern.count('{0}'.format(opponent)) 
+
+            for i, row in enumerate(self.board):  # duyệt từng dòng
+                # tại dòng được xét, duyệt từ trái qua phải xem có tồn tại mẫu hăm dọa trong đó hay không
                 for j in range(BOARD_SIZE - len(pattern) + 1):
-                    if ''.join(row[j:j+len(pattern)]) == pattern:
+                    if ''.join(row[j:j+len(pattern)]) == pattern: # nếu có chuỗi hăm dọa tại vị trí j
+                        # tạo một biến k để tìm vị trí chưa đánh trong phạm vi chuỗi hăm dọa tìm được (đó cũng chính là vị trí hăm dọa)
                         for k, char in enumerate(pattern):
+                            # có 2 trường hợp, điểm hăm dọa của nó là 3, 4,.., hoặc 3.5, 4.5,... 
+                            # Việc có nhiều hơn 2 cộng dồn hăm dọa của 3 cũng không thể làm đểm hăm dọa của nó thành 4 bởi vì 1 đường 4 vẫn hơn nhiều đường 3
                             if char == 'N' and 0 <= j+k < BOARD_SIZE:
                                 pos = GomokuPos(i, j+k)
+                                # nếu vị trí hăm dọa tìm được là mới và chưa tồn tại từ trước tới giờ
                                 if pos not in threatening_positions:
                                     pos.threatening = threatening_point
                                     threatening_positions.append(pos)
-                                else: # có 2 trường hợp, điểm hăm dọa của nó là 3, 4,.., hoặc 3.25, 4.25,... Việc có nhiều hơn 2 cộng dồn hăm dọa của 3 cũng không thể làm đểm hăm dọa của nó thành 4 bởi vì 1 đường 4 vẫn hơn nhiều đường 3
+                                # điểm hăm dọa của vị trí được cộng dồn sẽ tăng
+                                else: 
                                     id = threatening_positions.index(pos)
                                     old_threatening_point = threatening_positions[id].threatening
                                     if old_threatening_point == 3 or old_threatening_point == 4:
@@ -153,7 +175,7 @@ class Gomoku:
                                     else:
                                         old_threatening_point -= EXTRA_THREATENING_POINT
                                         threatening_positions[id].threatening = max(old_threatening_point, threatening_point) + EXTRA_THREATENING_POINT
-            for j in range(BOARD_SIZE):
+            for j in range(BOARD_SIZE): # duyệt theo cột. Cách duyệt của nó cũng tương tự với duyệt theo dòng
                 for i in range(BOARD_SIZE - len(pattern) + 1):
                     if ''.join(self.board[i+k][j] for k in range(len(pattern))) == pattern:
                         for k, char in enumerate(pattern):
@@ -162,7 +184,7 @@ class Gomoku:
                                 if pos not in threatening_positions:
                                     pos.threatening = threatening_point
                                     threatening_positions.append(pos)
-                                else: # có 2 trường hợp, điểm hăm dọa của nó là 3, 4,.., hoặc 3.25, 4.25,... Việc có nhiều hơn 2 cộng dồn hăm dọa của 3 cũng không thể làm đểm hăm dọa của nó thành 4 bởi vì 1 đường 4 vẫn hơn nhiều đường 3
+                                else: 
                                     id = threatening_positions.index(pos)
                                     old_threatening_point = threatening_positions[id].threatening
                                     if old_threatening_point == 3 or old_threatening_point == 4:
@@ -170,15 +192,18 @@ class Gomoku:
                                     else:
                                         old_threatening_point -= EXTRA_THREATENING_POINT
                                         threatening_positions[id].threatening = max(old_threatening_point, threatening_point) + EXTRA_THREATENING_POINT
-
-            for di in range(-BOARD_SIZE + 1, BOARD_SIZE): # biến chạy
-                # 2 danh sách các tọa độ của đường chéo chính và đường chéo phụ, duyệt từ dưới lên
+            # duyệt đường chéo chính và đường chéo phụ
+            # Ví dụ nếu BOARD_SIZE là 5 ta sẽ cho di chạy đoạn [-4,4] tương ứng có 9 CẶP đường chéo chính đường chéo phụ
+            # di là biến chạy dùng để lặp qua 9 cặp này, tương ứng với duyệt lần lượt toàn bộ đường chéo từ dưới lên
+            for di in range(-BOARD_SIZE + 1, BOARD_SIZE): 
+                # 2 danh sách các tọa độ của đường chéo chính và đường chéo phụ đang được xét
                 major_diagonal = [(i, i + di) for i in range(max(0, -di), min(BOARD_SIZE, BOARD_SIZE - di)) if 0 <= i + di < BOARD_SIZE]
                 minor_diagonal = [(i, BOARD_SIZE - 1 - i - di) for i in range(max(0, -di), min(BOARD_SIZE, BOARD_SIZE - di)) if 0 <= BOARD_SIZE - 1 - i - di < BOARD_SIZE]
                 for diagonal in [major_diagonal, minor_diagonal]:
                     # kiểm tra xem đường chéo được xét có chứa đe dọa hay không
                     # nếu có thì biến i sẽ là tọa độ bắt đầu của nó
                     for i in range(len(diagonal) - len(pattern) + 1): 
+                        # nếu tại vị trí i của đường chéo xuất hiện mẫu hăm dọa
                         if ''.join(self.board[x][y] for x, y in diagonal[i:i+len(pattern)]) == pattern:
                             for k, char in enumerate(pattern):
                                 if char == 'N':
@@ -187,7 +212,7 @@ class Gomoku:
                                     if pos not in threatening_positions:
                                         pos.threatening = threatening_point
                                         threatening_positions.append(pos)
-                                    else: # có 2 trường hợp, điểm hăm dọa của nó là 3, 4,.., hoặc 3.25, 4.25,... Việc có nhiều hơn 2 cộng dồn hăm dọa của 3 cũng không thể làm đểm hăm dọa của nó thành 4 bởi vì 1 đường 4 vẫn hơn nhiều đường 3
+                                    else:
                                         id = threatening_positions.index(pos)
                                         old_threatening_point = threatening_positions[id].threatening
                                         if old_threatening_point == 3 or old_threatening_point == 4:
@@ -203,27 +228,35 @@ class Gomoku:
         return threatening_positions, max_threatening_point
 
     def get_best_moves(self):
+        '''
+        Trả về các nước nên đi nhất hiện tại dựa trên hàm get_threatening_positions
+        '''
         me = self.active_turn
         op = 'X' if me == 'O' else 'O'
+        # tìm nước đi tốt nhất của 2 bên
         op_threatening_moves, op_threatening_point = self.get_threatening_positions(op) # defense moves
         me_threatening_moves, me_threatening_point = self.get_threatening_positions(me) # attack moves
-
+        # sau khi có nước đi tốt nhất của 2 bên, cần quyết định xem nên tấn công hay phòng thủ 
+        # người chơi me sẽ chỉ phòng thủ nếu như nước đi của địch nhiều hăm dọa hơn
         if me_threatening_point >= op_threatening_point:
             # look if the player me has any attack moves
             if me_threatening_moves: 
-                return sorted(me_threatening_moves, key=lambda pos: pos.threatening, reverse=True), me_threatening_point
+                return [move for move in me_threatening_moves if move.threatening == me_threatening_point], me_threatening_point
             return [random.choice(self.get_lite_best_moves(me))], me_threatening_point
         elif op_threatening_point >= 4:
             # only need to return one move because that move is eventually played
-            return sorted(op_threatening_moves, key=lambda pos: pos.threatening, reverse=True)[0:1], op_threatening_point
-        return sorted(op_threatening_moves, key=lambda pos: pos.threatening, reverse=True), op_threatening_point
+            return [[move for move in op_threatening_moves if move.threatening == op_threatening_point][0]], op_threatening_point
+        return [move for move in op_threatening_moves if move.threatening == op_threatening_point], op_threatening_point
 
     def get_lite_best_moves(self, me):
         '''
-        Return lite-best moves of the me player
+        Return lite-best moves of the me player\n
+        Nước đi được đánh giá tốt hơn nếu như có nhiều nước giống nó hơn
         '''
         best_moves = []
         max_allies = -1
+        MOVE_LIMITED = 4
+        # tìm 8 hướng xung quanh để đếm số lượng nước giống
         directions = [(0, 1), (1, 0), (0, -1), (-1, 0), (1, 1), (-1, -1), (1, -1), (-1, 1)]
         for i in range(BOARD_SIZE):
             for j in range(BOARD_SIZE):
@@ -240,15 +273,15 @@ class Gomoku:
                     elif num_allies == max_allies:
                         best_moves.append(GomokuPos(i, j))
         
-        if len(best_moves) < MAX_DEPTH:
+        if len(best_moves) < MOVE_LIMITED:
             return best_moves
         else:
             '''
-            Lọc tiêu chí phụ, ví dụ gần trung tâm hơn
+            Lọc tiêu chí phụ, ví dụ ở đây là gần trung tâm hơn
             '''
             center_point = GomokuPos(BOARD_SIZE//2, BOARD_SIZE//2)
             best_moves.sort(key=lambda x: GomokuPos.distance_between(center_point, x))
-            return best_moves[0:4]
+            return best_moves[0:MOVE_LIMITED]
 
     def count_moves(self):
         '''
@@ -282,7 +315,8 @@ class Gomoku:
 class GomokuBot:
     """
     This BOT can return the best move from a given Gomoku board game\n
-    Use take_turn method and then get the choice property to get the best move
+    Usage:\n
+    Use take_turn_alpha_beta method and then get the choice property to get the best move
     """
     def __init__(self, gmk_game):
         self.gmk_game = gmk_game
@@ -298,7 +332,6 @@ class GomokuBot:
         Trả về điểm có được của một game ĐÃ KẾT THÚC
         Số điểm cao nhất là 20
         '''
-
         if winner == self.name:
             return 20 - depth
         elif winner == self.opponent:
@@ -316,7 +349,6 @@ class GomokuBot:
         best_moves, threatening_point = state.get_best_moves()
 
         if state.active_turn == self.name:
-            
             if depth == 0 and threatening_point >= 4:
                 self.choice = best_moves[0]
                 print("GET 1 QUICK SOLUTION!!!")
@@ -349,9 +381,8 @@ class GomokuBot:
 
     def take_turn_alpha_beta(self):
         """
-        Return the best move it can do from its current board game
-        TODO:
-        Optimize, it turn slow when the number of blanks goes to 13 blanks
+        Changes the self.choice and then return the best move it can move from its current board game\n
+        This function does not change the given board game
         """
         self.minimax_alpha_beta(self.gmk_game, 0, -MINIMAX_INFINITY, MINIMAX_INFINITY)
         print(f"solution:({self.choice.x}, {self.choice.y})")

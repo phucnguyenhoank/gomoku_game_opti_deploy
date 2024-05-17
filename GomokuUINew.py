@@ -2,13 +2,11 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from gomoku import Gomoku, GomokuBot, GomokuPos, BOARD_SIZE
 
-
-
-class GomokuGUI(tk.Toplevel):
-    def __init__(self, parent, who_go_first='BOT'):
-        super().__init__(parent)
+class GomokuGUI(tk.Tk):
+    def __init__(self, who_go_first='BOT'):
+        super().__init__()
         self.title("Welcome To Gomoku")
-        self.geometry("410x500")
+        self.geometry("700x700")
 
         self.game = Gomoku()
         self.bot = GomokuBot(self.game)
@@ -28,11 +26,11 @@ class GomokuGUI(tk.Toplevel):
 
         for i in range(BOARD_SIZE):
             for j in range(BOARD_SIZE):
-                self.labels[i][j] = tk.Label(self.fra_blanks, width=2, text='', relief=tk.RAISED, bg='white')
+                self.labels[i][j] = tk.Label(self.fra_blanks, width=2, height=1, text='', relief=tk.RAISED, bg='white', font=("Helvetica", 16))
                 self.labels[i][j].grid(row=i, column=j, sticky='nsew')
                 self.labels[i][j].bind('<Button-1>', lambda e, row=i, col=j: self.make_move(row, col))
 
-        self.status_label = ttk.Label(self, text="")
+        self.status_label = ttk.Label(self, text="", font=("Helvetica", 16))
         
     def place_widgets(self):
         self.fra_blanks.grid(row=0, column=0)
@@ -68,6 +66,13 @@ class GomokuGUI(tk.Toplevel):
             x = pos.x
             y = pos.y
             self.labels[x][y]['text'] = self.game.board[x][y]
+            color = ''
+            move_name = self.game.board[x][y]
+            if move_name == 'X':
+                color = 'blue'
+            else:
+                color = 'red'
+            self.labels[x][y].config(text=move_name, fg=color)
         else:
             for i in range(BOARD_SIZE):
                 for j in range(BOARD_SIZE):
@@ -91,38 +96,7 @@ class GomokuGUI(tk.Toplevel):
             self.bot.name = 'O'
 
 
-class GomokuSelector(tk.Tk):
-    def __init__(self):
-        super().__init__()
-        self.title("Gomoku Welcome")
-        self.create_widgets()
-        self.place_widgets()
-        self.associate_events()
-
-    def create_widgets(self):
-        self.fra_user_options = tk.Frame(self)
-
-        self.lbl_who_go_first = ttk.Label(self.fra_user_options, text="Who go first:")
-        self.cb_who_go_first = ttk.Combobox(self.fra_user_options, values=('YOU', 'BOT'), state='readonly')
-        self.cb_who_go_first.set('BOT')
-
-        self.btn_play = ttk.Button(self.fra_user_options, text="Play")
-
-    def place_widgets(self):
-        self.lbl_who_go_first.grid(row=2, column=0)
-        self.cb_who_go_first.grid(row=3, column=0)
-        self.btn_play.grid(row=4, column=0)
-        self.fra_user_options.grid(row=1, column=0)
-
-    def associate_events(self):
-        self.btn_play.bind("<Button-1>", lambda e: self.btn_play_Button_1())
-
-    def btn_play_Button_1(self):
-        tic_tac_toe_gui = GomokuGUI(self, self.cb_who_go_first.get())
-        tic_tac_toe_gui.grab_set()
-
-
 if __name__ == "__main__":
-    app = GomokuSelector()
+    app = GomokuGUI()
     app.mainloop()
 
