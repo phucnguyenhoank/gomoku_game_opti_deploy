@@ -1,8 +1,10 @@
 import random
+import json
 
 BOARD_SIZE = 20
 MINIMAX_INFINITY = 999
-MAX_DEPTH = 6
+MAX_DEPTH = 7
+
 
 class GomokuPos:
     '''Được thiết kế dành riêng cho lớp Gomoku'''
@@ -10,6 +12,14 @@ class GomokuPos:
         self.x = x
         self.y = y
         self.threatening = threatening
+
+    def serialize(self):
+        return json.dumps({'x': self.x, 'y': self.y, 'threatening': self.threatening})
+
+    @classmethod
+    def deserialize(cls, data):
+        data = json.loads(data)
+        return cls(x=data['x'], y=data['y'], threatening=data['threatening'])
 
     def valid_pos(self):
         return 0 <= self.x < BOARD_SIZE and 0 <= self.y < BOARD_SIZE
@@ -20,6 +30,14 @@ class GomokuPos:
         x2, y2 = pos_b.x, pos_b.y
         distance = ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5
         return distance
+    
+    def to_standard_pos(self):
+        '''Convert to 1->20 row and A->Z column possition, return 2 variable'''
+        return self.x + 1, chr(65 + self.y)
+    
+    @staticmethod
+    def to_gomoku_pos(row_number, col_letter):
+        return GomokuPos(row_number - 1, ord(col_letter) - ord('A'))
 
     def __eq__(self, other):
         '''Don't check if is is an instance'''
@@ -30,6 +48,7 @@ class GomokuPos:
 
     def __hash__(self):
         return hash((self.x, self.y))
+
 
 
 class Gomoku:
@@ -48,6 +67,24 @@ class Gomoku:
         else:
             self.board = [row[:] for row in other.board]
             self.active_turn = other.active_turn
+    
+    # Use for Streamlit Web Application
+    def serialize(self):
+        """Convert the object state to a JSON string."""
+        return json.dumps({
+            'board': self.board,
+            'active_turn': self.active_turn,
+        })
+
+    @classmethod
+    def deserialize(cls, json_str):
+        """Create an object instance from a JSON string."""
+        data = json.loads(json_str)
+        instance = cls()
+        instance.board = data['board']
+        instance.active_turn = data['active_turn']
+        return instance
+    
         
     def win(self):
         """
@@ -193,12 +230,12 @@ class Gomoku:
                                         old_threatening_point -= EXTRA_THREATENING_POINT
                                         threatening_positions[id].threatening = max(old_threatening_point, threatening_point) + EXTRA_THREATENING_POINT
             # duyệt đường chéo chính và đường chéo phụ
-            # Ví dụ nếu BOARD_SIZE là 5 ta sẽ cho di chạy đoạn [-4,4] tương ứng có 9 CẶP đường chéo chính đường chéo phụ
+            # Ví dụ nếu BOARD_SIZE là 5 ta sẽ cho di chạy đoạn [4,-4] tương ứng có 9 CẶP đường chéo chính đường chéo phụ
             # di là biến chạy dùng để lặp qua 9 cặp này, tương ứng với duyệt lần lượt toàn bộ đường chéo từ dưới lên
-            for di in range(-BOARD_SIZE + 1, BOARD_SIZE): 
+            for di in range(BOARD_SIZE-1, -BOARD_SIZE, -1): 
                 # 2 danh sách các tọa độ của đường chéo chính và đường chéo phụ đang được xét
-                major_diagonal = [(i, i + di) for i in range(max(0, -di), min(BOARD_SIZE, BOARD_SIZE - di)) if 0 <= i + di < BOARD_SIZE]
-                minor_diagonal = [(i, BOARD_SIZE - 1 - i - di) for i in range(max(0, -di), min(BOARD_SIZE, BOARD_SIZE - di)) if 0 <= BOARD_SIZE - 1 - i - di < BOARD_SIZE]
+                major_diagonal = [(i, i - di) for i in range(max(0, di), min(BOARD_SIZE, di + BOARD_SIZE))]
+                minor_diagonal = [(i, BOARD_SIZE - 1 - (i - di)) for i in range(max(0, di), min(BOARD_SIZE, di + BOARD_SIZE))]
                 for diagonal in [major_diagonal, minor_diagonal]:
                     # kiểm tra xem đường chéo được xét có chứa đe dọa hay không
                     # nếu có thì biến i sẽ là tọa độ bắt đầu của nó
@@ -463,7 +500,7 @@ if __name__ == "__main__":
             else:
                 print('Tie!')
             break
-    '''
+'''
     
 
 
