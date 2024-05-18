@@ -3,7 +3,7 @@ import json
 
 BOARD_SIZE = 20
 MINIMAX_INFINITY = 999
-MAX_DEPTH = 7
+MAX_DEPTH = 6
 
 
 class GomokuPos:
